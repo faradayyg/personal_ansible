@@ -1,0 +1,3 @@
+OPEN_AI_KEY="{{OPEN_AI_KEY}}"
+DB_URL="sqlite:///storage.db"
+ALLOWED_ORIGINS="*"

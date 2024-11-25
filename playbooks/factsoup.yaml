@@ -1,0 +1,84 @@
+- name: Setup Fact Soup
+  hosts: myhosts
+
+  vars_files:
+    - ../secrets.yaml
+
+  tasks:
+    - name: Install python3
+      become: yes
+      ansible.builtin.package:
+        name: python3
+        state: present
+
+    - name: Install poetry
+      become: yes
+      ansible.builtin.package:
+        name: python3-poetry
+        state: present
+
+    - name: Clone Fact Soup
+      become: yes
+      ansible.builtin.git:
+        repo: https://github.com/faradayyg/factsoup.git
+        dest: /var/www/factsoup
+        update: yes
+        force: yes
+
+    - name: Copy environment file
+      become: yes
+      ansible.builtin.copy:
+        src: ./resources/factsoup/env
+        dest: /var/www/factsoup/.env
+        owner: root
+        group: root
+        mode: 0644
+
+    - name: Substitute environment variables
+      become: yes
+      ansible.builtin.replace:
+        path: /var/www/factsoup/.env
+        regexp: "OPEN_AI_KEY=.*"
+        replace: "OPEN_AI_KEY={{ open_ai_key }}"
+
+    - name: Change ownership
+      become: yes
+      ansible.builtin.shell:
+        cmd: chown -R faraday /var/www/factsoup/
+
+    - name: Install dependencies
+      ansible.builtin.shell:
+        cmd: cd /var/www/factsoup && poetry install
+
+    - name: Install supervisor
+      become: yes
+      ansible.builtin.package:
+        name: supervisor
+        state: present
+
+    - name: Copy supervisor configuration
+      become: yes
+      ansible.builtin.copy:
+        src: ../conf/supervisor/factsoup.conf
+        dest: /etc/supervisor/conf.d/factsoup.conf
+        owner: root
+        group: root
+        mode: 0644
+
+    - name: Create Factsoup log directory
+      become: yes
+      ansible.builtin.file:
+        dest: /var/logs/factsoup
+        state: directory
+
+    - name: Update supervisor
+      become: yes
+      ansible.builtin.shell:
+        cmd: supervisorctl reread && supervisorctl update
+
+    - name: Start supervisor
+      become: yes
+      ansible.builtin.service:
+        name: supervisor
+        state: started
+        enabled: yes

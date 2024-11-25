@@ -1,0 +1,93 @@
+- name: Setup Personal website
+  hosts: myhosts
+  tasks:
+    - name: Ping my hosts
+      ansible.builtin.ping:
+
+    - name: Update apt
+      become: yes
+      ansible.builtin.apt:
+        update_cache: yes
+
+    - name: Install nginx
+      become: yes
+      ansible.builtin.package:
+        name: nginx
+        state: present
+
+    - name: Clone my website
+      become: yes
+      ansible.builtin.git:
+        repo: https://github.com/faradayyg/personal-website.git
+        dest: /var/www/personal-website
+        update: yes
+        force: yes
+
+    - name: Copy nginx configuration
+      become: yes
+      ansible.builtin.copy:
+        src: ./conf/nginx/personal_website.conf
+        dest: /etc/nginx/sites-available/personal-website.conf
+        owner: root
+        group: root
+        mode: 0644
+
+    - name: Create symlink
+      become: yes
+      ansible.builtin.file:
+        src: /etc/nginx/sites-available/personal-website.conf
+        dest: /etc/nginx/sites-enabled/personal-website.conf
+        state: link
+
+    - name: Install certbot
+      become: yes
+      ansible.builtin.package:
+        name: certbot
+        state: present
+
+    - name: Install certbot nginx plugin
+      become: yes
+      ansible.builtin.package:
+        name: python3-certbot-nginx
+        state: present
+
+    - name: Delete default nginx configuration
+      become: yes
+      ansible.builtin.file:
+        name: /etc/nginx/sites-enabled/default
+        state: absent
+
+    - name: Restart nginx
+      become: yes
+      ansible.builtin.service:
+        name: nginx
+        state: restarted
+
+    - name: Obtain SSL certificate
+      become: yes
+      ansible.builtin.shell:
+        cmd: certbot --nginx -d www.fridaygodswill.com -d fridaygodswill.com --non-interactive --agree-tos -m faradayyg@gmail.com
+
+- import_playbook: playbooks/santa.yaml
+- import_playbook: playbooks/factsoup.yaml
+
+- name: Restart services
+  hosts: myhosts
+  tasks:
+    - name: Restart php-fpm
+      become: yes
+      ansible.builtin.service:
+        name: php8.3-fpm
+        state: restarted
+
+    - name: Restart supervisor
+      become: yes
+      ansible.builtin.service:
+        name: supervisor
+        state: restarted
+
+    - name: Restart nginx
+      become: yes
+      ansible.builtin.service:
+        name: nginx
+        state: restarted

@@ -1,0 +1,71 @@
+- name: Setup linkStanta
+  hosts: myhosts
+
+  vars_files:
+    - ../secrets.yaml
+
+  tasks:
+    - name: Ping my hosts
+      ansible.builtin.ping:
+
+    - name: Add Github to known hosts
+      ansible.builtin.shell:
+        cmd: ssh-keyscan -H github.com >> ~/.ssh/known_hosts
+
+    - name: Clone Repo
+      become: yes
+      ansible.builtin.git:
+        repo: https://{{ git_token }}@github.com/faradayyg/linkSanta.git
+        dest: /var/www/linkSanta
+        update: yes
+        force: yes
+
+    - name: Install php-fpm and extensions
+      become: yes
+      ansible.builtin.package:
+        name:
+          - php8.3-fpm
+          - php8.3-mysql
+          - php8.3-mbstring
+          - php8.3-xml
+          - php8.3-curl
+          - php8.3-zip
+          - php8.3-gd
+        state: present
+
+    - name: Start php-fpm
+      become: yes
+      ansible.builtin.service:
+        name: php8.3-fpm
+        state: started
+        enabled: yes
+
+    - name: Install composer
+      become: yes
+      ansible.builtin.shell:
+        cmd: curl -sS https://getcomposer.org/installer | php && mv composer.phar /usr/local/bin/composer && chmod +x /usr/local/bin/composer && chown -R faraday /var/www/linkSanta/
+
+    - name: Install dependencies
+      ansible.builtin.shell:
+        cmd: cd /var/www/linkSanta && composer install
+
+    - name: Copy nginx configuration
+      become: yes
+      ansible.builtin.copy:
+        src: ../conf/nginx/linkSanta.conf
+        dest: /etc/nginx/sites-available/linkSanta.conf
+        owner: root
+        group: root
+        mode: 0644
+
+    - name: Create symlink
+      become: yes
+      ansible.builtin.file:
+        src: /etc/nginx/sites-available/linkSanta.conf
+        dest: /etc/nginx/sites-enabled/linkSanta.conf
+        state: link
+
+    - name: Obtain SSL certificate
+      become: yes
+      ansible.builtin.shell:
+        cmd: certbot --nginx -d santa.fridaygodswill.com  --non-interactive --agree-tos -m faradayyg@gmail.com
